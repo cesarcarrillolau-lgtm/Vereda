@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de datos</title>
+  <style>
+    :root {
+      --color: #1a73e8;
+      --fondo: #f4f6fb;
+      --texto: #1f2430;
+      --error: #c62828;
+      --ok: #2e7d32;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--fondo);
+      color: var(--texto);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .tarjeta {
+      background: #fff;
+      width: 100%;
+      max-width: 440px;
+      padding: 28px 24px;
+      border-radius: 16px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, .08);
+    }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    p.sub { margin: 0 0 22px; color: #5b6472; font-size: .95rem; }
+    label { display: block; font-weight: 600; margin: 16px 0 6px; }
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      font-size: 1rem;
+      border: 1.5px solid #cfd6e4;
+      border-radius: 10px;
+      background: #fff;
+    }
+    input:focus { outline: none; border-color: var(--color); box-shadow: 0 0 0 3px rgba(26,115,232,.15); }
+    .campo-error { color: var(--error); font-size: .85rem; min-height: 1.1em; margin-top: 4px; }
+    button {
+      width: 100%;
+      margin-top: 22px;
+      padding: 14px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--color);
+      border: 0;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    #mensaje { margin-top: 16px; text-align: center; font-weight: 600; min-height: 1.2em; }
+    #mensaje.ok { color: var(--ok); }
+    #mensaje.error { color: var(--error); }
+    .trampa { position: absolute; left: -9999px; }
+  </style>
+</head>
+<body>
+  <main class="tarjeta">
+    <h1>Registro de datos</h1>
+    <p class="sub">Completa estas 3 preguntas y presiona Enviar.</p>
+
+    <form id="formulario" novalidate>
+      <label for="nombre">1. ¿Cuál es tu nombre?</label>
+      <input id="nombre" name="nombre" type="text" autocomplete="name" maxlength="100" placeholder="Nombre y apellido">
+      <div class="campo-error" id="err-nombre"></div>
+
+      <label for="edad">2. ¿Qué edad tienes?</label>
+      <input id="edad" name="edad" type="number" inputmode="numeric" min="1" max="120" placeholder="Ej: 30">
+      <div class="campo-error" id="err-edad"></div>
+
+      <label for="direccion">3. ¿Dónde vives?</label>
+      <input id="direccion" name="direccion" type="text" autocomplete="street-address" maxlength="200" placeholder="Distrito, ciudad o dirección">
+      <div class="campo-error" id="err-direccion"></div>
+
+      <!-- Campo trampa contra bots: las personas no lo ven -->
+      <input class="trampa" type="text" name="web" tabindex="-1" autocomplete="off" aria-hidden="true">
+
+      <button type="submit" id="boton">Enviar</button>
+      <div id="mensaje" role="status"></div>
+    </form>
+  </main>
+
+  <script>
+    // >>> PEGA AQUÍ la URL de tu Apps Script (termina en /exec) <<<
+    const URL_SCRIPT = "PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT";
+
+    const form = document.getElementById("formulario");
+    const boton = document.getElementById("boton");
+    const mensaje = document.getElementById("mensaje");
+
+    function setError(id, texto) {
+      document.getElementById("err-" + id).textContent = texto || "";
+    }
+
+    function validar() {
+      let valido = true;
+      const nombre = form.nombre.value.trim();
+      const edad = Number(form.edad.value);
+      const direccion = form.direccion.value.trim();
+
+      setError("nombre", ""); setError("edad", ""); setError("direccion", "");
+
+      if (nombre.length < 2) { setError("nombre", "Escribe tu nombre."); valido = false; }
+      if (!form.edad.value || !Number.isInteger(edad) || edad < 1 || edad > 120) {
+        setError("edad", "Escribe una edad válida (1 a 120)."); valido = false;
+      }
+      if (direccion.length < 2) { setError("direccion", "Escribe dónde vives."); valido = false; }
+      return valido;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      mensaje.textContent = "";
+      mensaje.className = "";
+
+      if (form.web.value) return; // bot detectado
+      if (!validar()) return;
+
+      if (URL_SCRIPT.startsWith("PEGA_AQUI")) {
+        mensaje.textContent = "Falta configurar la URL del script.";
+        mensaje.className = "error";
+        return;
+      }
+
+      boton.disabled = true;
+      boton.textContent = "Enviando...";
+
+      const datos = new URLSearchParams({
+        nombre: form.nombre.value.trim(),
+        edad: form.edad.value,
+        direccion: form.direccion.value.trim()
+      });
+
+      try {
+        // no-cors: Google Apps Script no devuelve cabeceras CORS, pero el envío sí llega.
+        await fetch(URL_SCRIPT, { method: "POST", mode: "no-cors", body: datos });
+        mensaje.textContent = "¡Gracias! Tus datos fueron enviados.";
+        mensaje.className = "ok";
+        form.reset();
+      } catch (err) {
+        mensaje.textContent = "No se pudo enviar. Revisa tu internet e inténtalo de nuevo.";
+        mensaje.className = "error";
+      } finally {
+        boton.disabled = false;
+        boton.textContent = "Enviar";
+      }
+    });
+  </script>
+</body>
+</html>
